@@ -1,0 +1,35 @@
+pipeline {
+    agent any
+    
+    stages {
+        stage('Checkout') {
+            steps {
+                git 'https://github.com/your-repo/ecommerce-devops-project.git'
+            }
+        }
+        
+        stage('Build Backend') {
+            steps {
+                dir('backend') {
+                    sh 'npm install'
+                    sh 'docker build -f ../docker/Dockerfile.backend -t ecommerce-backend:${BUILD_NUMBER} .'
+                }
+            }
+        }
+        
+        stage('Build Frontend') {
+            steps {
+                dir('frontend') {
+                    sh 'npm install'
+                    sh 'docker build -f ../docker/Dockerfile.frontend -t ecommerce-frontend:${BUILD_NUMBER} .'
+                }
+            }
+        }
+        
+        stage('Deploy to K8s') {
+            steps {
+                sh 'kubectl apply -f k8s/'
+            }
+        }
+    }
+}
