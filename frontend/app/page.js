@@ -1,6 +1,10 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
+import ProductComparison from '../components/ProductComparison';
+import AdvancedFilters from '../components/AdvancedFilters';
+import UserAccount from '../components/UserAccount';
+import LiveChat from '../components/LiveChat';
 
 // Toast Component
 const Toast = ({ message, type, onClose }) => {
@@ -161,6 +165,14 @@ export default function Home() {
   const [isLoading, setIsLoading] = useState(true);
   const [showScrollTop, setShowScrollTop] = useState(false);
   const [email, setEmail] = useState("");
+  const [compareProducts, setCompareProducts] = useState([]);
+  const [showComparison, setShowComparison] = useState(false);
+  const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
+  const [priceRange, setPriceRange] = useState({ min: 0, max: 1000 });
+  const [sortBy, setSortBy] = useState('featured');
+  const [minRating, setMinRating] = useState(0);
+  const [showUserAccount, setShowUserAccount] = useState(false);
+  const [showLiveChat, setShowLiveChat] = useState(false);
 
   const categories = ["All", "Electronics", "Accessories", "Wearables", "Gaming"];
 
@@ -309,7 +321,18 @@ export default function Home() {
     const matchesSearch = product.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
                          product.description.toLowerCase().includes(searchQuery.toLowerCase());
     const matchesCategory = selectedCategory === "All" || product.category === selectedCategory;
-    return matchesSearch && matchesCategory;
+    const matchesPrice = product.price >= priceRange.min && product.price <= priceRange.max;
+    const matchesRating = minRating === 0 || product.rating >= minRating;
+    return matchesSearch && matchesCategory && matchesPrice && matchesRating;
+  }).sort((a, b) => {
+    switch (sortBy) {
+      case 'price-low': return a.price - b.price;
+      case 'price-high': return b.price - a.price;
+      case 'rating': return b.rating - a.rating;
+      case 'newest': return b.id - a.id;
+      case 'popular': return b.reviews - a.reviews;
+      default: return 0;
+    }
   });
 
   const scrollToTop = () => window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -321,6 +344,23 @@ export default function Home() {
       showToast('Successfully subscribed to newsletter!');
       setEmail('');
     }
+  };
+
+  const addToComparison = (product) => {
+    if (compareProducts.length >= 4) {
+      showToast('Maximum 4 products can be compared', 'info');
+      return;
+    }
+    if (compareProducts.some(p => p.id === product.id)) {
+      showToast('Product already in comparison', 'info');
+      return;
+    }
+    setCompareProducts([...compareProducts, product]);
+    showToast(`${product.name} added to comparison!`);
+  };
+
+  const removeFromComparison = (productId) => {
+    setCompareProducts(compareProducts.filter(p => p.id !== productId));
   };
 
   return (
@@ -335,6 +375,25 @@ export default function Home() {
         onAddToCart={addToCart}
         onAddToWishlist={toggleWishlist}
         isInWishlist={quickViewProduct && wishlist.some(item => item.id === quickViewProduct.id)}
+      />
+
+      {/* Product Comparison Modal */}
+      <ProductComparison
+        products={compareProducts}
+        onClose={() => setShowComparison(false)}
+        onRemoveProduct={removeFromComparison}
+      />
+
+      {/* User Account Modal */}
+      <UserAccount
+        isOpen={showUserAccount}
+        onClose={() => setShowUserAccount(false)}
+      />
+
+      {/* Live Chat */}
+      <LiveChat
+        isOpen={showLiveChat}
+        onToggle={() => setShowLiveChat(!showLiveChat)}
       />
 
       {/* Header */}
@@ -372,6 +431,19 @@ export default function Home() {
                 {darkMode ? '☀️' : '🌙'}
               </button>
 
+              {/* Compare Products */}
+              <button 
+                onClick={() => setShowComparison(true)}
+                className="relative p-3 rounded-xl bg-gray-100 dark:bg-slate-800 hover:bg-gray-200 dark:hover:bg-slate-700 transition-colors"
+              >
+                <span>⚖️</span>
+                {compareProducts.length > 0 && (
+                  <span className="absolute -top-1 -right-1 w-5 h-5 bg-blue-500 text-white text-xs rounded-full flex items-center justify-center animate-bounce-in">
+                    {compareProducts.length}
+                  </span>
+                )}
+              </button>
+
               {/* Wishlist */}
               <button className="relative p-3 rounded-xl bg-gray-100 dark:bg-slate-800 hover:bg-gray-200 dark:hover:bg-slate-700 transition-colors">
                 <span>❤️</span>
@@ -380,6 +452,14 @@ export default function Home() {
                     {wishlist.length}
                   </span>
                 )}
+              </button>
+
+              {/* User Account */}
+              <button 
+                onClick={() => setShowUserAccount(true)}
+                className="p-3 rounded-xl bg-gray-100 dark:bg-slate-800 hover:bg-gray-200 dark:hover:bg-slate-700 transition-colors"
+              >
+                <span>👤</span>
               </button>
 
               {/* Cart */}
@@ -602,22 +682,47 @@ export default function Home() {
               />
             </div>
 
-            {/* Categories */}
-            <div className="flex gap-2 overflow-x-auto pb-2 md:pb-0">
-              {categories.map((category) => (
-                <button
-                  key={category}
-                  onClick={() => setSelectedCategory(category)}
-                  className={`px-6 py-4 rounded-xl font-medium whitespace-nowrap transition-all ${
-                    selectedCategory === category
-                      ? 'btn-primary text-white'
-                      : 'bg-gray-100 dark:bg-slate-800 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-slate-700'
-                  }`}
-                >
-                  {category}
-                </button>
-              ))}
+            {/* Categories and Filters */}
+            <div className="flex flex-col md:flex-row gap-4">
+              <div className="flex gap-2 overflow-x-auto pb-2 md:pb-0">
+                {categories.map((category) => (
+                  <button
+                    key={category}
+                    onClick={() => setSelectedCategory(category)}
+                    className={`px-6 py-4 rounded-xl font-medium whitespace-nowrap transition-all ${
+                      selectedCategory === category
+                        ? 'btn-primary text-white'
+                        : 'bg-gray-100 dark:bg-slate-800 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-slate-700'
+                    }`}
+                  >
+                    {category}
+                  </button>
+                ))}
+              </div>
+              
+              {/* Advanced Filters Toggle */}
+              <button
+                onClick={() => setShowAdvancedFilters(!showAdvancedFilters)}
+                className="px-6 py-4 rounded-xl bg-gray-100 dark:bg-slate-800 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-slate-700 font-medium transition-all flex items-center gap-2"
+              >
+                <span>🔧</span>
+                Advanced Filters
+                <span className={`transform transition-transform ${showAdvancedFilters ? 'rotate-180' : ''}`}>▼</span>
+              </button>
             </div>
+
+            {/* Advanced Filters Component */}
+            <AdvancedFilters
+              isOpen={showAdvancedFilters}
+              onToggle={() => setShowAdvancedFilters(!showAdvancedFilters)}
+              categories={categories}
+              priceRange={priceRange}
+              onPriceRangeChange={setPriceRange}
+              sortBy={sortBy}
+              onSortChange={setSortBy}
+              minRating={minRating}
+              onRatingChange={setMinRating}
+            />
           </div>
 
           {/* Product Grid */}
@@ -648,12 +753,21 @@ export default function Home() {
                         <button
                           onClick={() => setQuickViewProduct(product)}
                           className="p-3 bg-white rounded-lg hover:bg-indigo-600 hover:text-white transition-colors"
+                          title="Quick View"
                         >
                           👁️
                         </button>
                         <button
+                          onClick={() => addToComparison(product)}
+                          className="p-3 bg-white rounded-lg hover:bg-blue-600 hover:text-white transition-colors"
+                          title="Add to Compare"
+                        >
+                          ⚖️
+                        </button>
+                        <button
                           onClick={() => toggleWishlist(product)}
                           className="p-3 bg-white rounded-lg hover:bg-red-500 hover:text-white transition-colors"
+                          title="Add to Wishlist"
                         >
                           {wishlist.some(item => item.id === product.id) ? '❤️' : '🤍'}
                         </button>
